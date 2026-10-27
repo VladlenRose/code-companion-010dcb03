@@ -7,18 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteNegotiation } from "@/lib/negotiations.functions";
+import { RequestOwner } from "./request-owner";
+import { RequestDetails } from "./request-details";
 
-type Item = { id: string; version: number; buyer: string; seller: string; created_at: string };
+type Item = { id: string; version: number; buyer: string; seller: string; buyer_id: string; seller_id: string; buyer_request_id: string; seller_request_id: string; created_at: string };
 
 export function AdminNegotiations() {
   const client = useQueryClient();
   const remove = useServerFn(deleteNegotiation);
   const [selected, setSelected] = useState<Item | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["admin-negotiations"], refetchInterval: 10000,
     queryFn: async () => {
       const { data, error } = await supabase.from("request_negotiations")
-        .select("id,version,created_at,buyer_request_id,seller_request_id")
+        .select("id,version,created_at,buyer_request_id,seller_request_id,buyer_id,seller_id")
         .order("created_at", { ascending: false });
       if (error) throw error;
       const ids = [...new Set((data ?? []).flatMap(n => [n.buyer_request_id, n.seller_request_id]))];
@@ -51,7 +54,7 @@ export function AdminNegotiations() {
     </div>
     {query.isPending ? <Loader2 aria-label="Загрузка торгов" className="size-5 animate-spin text-dim" /> : query.isError ? <p role="alert" className="text-sm text-destructive">Не удалось загрузить торги.</p> : !query.data.length ? <p className="text-sm text-dim">Торгов пока нет.</p> : <ul className="divide-y divide-border">
       {query.data.map(n => <li key={n.id} className="flex items-center justify-between gap-4 py-4">
-        <div className="min-w-0"><p className="break-words text-sm font-medium text-ink">{n.buyer} ⇄ {n.seller}</p><p className="mt-1 text-xs text-dim">{new Date(n.created_at).toLocaleDateString("ru-RU")} · Версия {n.version}</p></div>
+        <div className="min-w-0 flex-1"><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><RequestOwner userId={n.buyer_id} /><Button variant="link" className="h-auto whitespace-normal p-0 text-left" onClick={() => setRequestId(n.buyer_request_id)}>{n.buyer}</Button></div><div className="space-y-2"><RequestOwner userId={n.seller_id} /><Button variant="link" className="h-auto whitespace-normal p-0 text-left" onClick={() => setRequestId(n.seller_request_id)}>{n.seller}</Button></div></div><p className="mt-2 text-xs text-dim">{new Date(n.created_at).toLocaleDateString("ru-RU")} · Версия {n.version}</p></div>
         <Button variant="ghost" size="icon" className="shrink-0 text-destructive" aria-label={`Удалить торг ${n.buyer} — ${n.seller}`} title="Удалить торг" disabled={deletion.isPending} onClick={() => setSelected(n)}><Trash2 className="size-4" /></Button>
       </li>)}
     </ul>}
@@ -61,5 +64,6 @@ export function AdminNegotiations() {
         <DialogFooter><Button variant="outline" disabled={deletion.isPending} onClick={() => setSelected(null)}>Отмена</Button><Button variant="destructive" disabled={deletion.isPending} onClick={() => deletion.mutate()}>{deletion.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}Удалить торг</Button></DialogFooter>
       </DialogContent>
     </Dialog>
+    <RequestDetails requestId={requestId} onClose={() => setRequestId(null)} />
   </section>;
 }
