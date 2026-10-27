@@ -17,6 +17,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as RequestsRouteImport } from './routes/requests'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SellerRouteImport } from './routes/seller'
 import { Route as UUserIdRouteImport } from './routes/u/$userId'
 
@@ -60,6 +61,11 @@ const RequestsRoute = RequestsRouteImport.update({
   path: '/requests',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SellerRoute = SellerRouteImport.update({
   id: '/seller',
   path: '/seller',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/documents': typeof DocumentsRoute
   '/profile': typeof ProfileRoute
   '/requests': typeof RequestsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/seller': typeof SellerRoute
   '/u/$userId': typeof UUserIdRoute
 }
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/documents': typeof DocumentsRoute
   '/profile': typeof ProfileRoute
   '/requests': typeof RequestsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/seller': typeof SellerRoute
   '/u/$userId': typeof UUserIdRoute
 }
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/documents': typeof DocumentsRoute
   '/profile': typeof ProfileRoute
   '/requests': typeof RequestsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/seller': typeof SellerRoute
   '/u/$userId': typeof UUserIdRoute
 }
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/profile'
     | '/requests'
+    | '/reset-password'
     | '/seller'
     | '/u/$userId'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/profile'
     | '/requests'
+    | '/reset-password'
     | '/seller'
     | '/u/$userId'
   id:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/documents'
     | '/profile'
     | '/requests'
+    | '/reset-password'
     | '/seller'
     | '/u/$userId'
   fileRoutesById: FileRoutesById
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   DocumentsRoute: typeof DocumentsRoute
   ProfileRoute: typeof ProfileRoute
   RequestsRoute: typeof RequestsRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SellerRoute: typeof SellerRoute
   UUserIdRoute: typeof UUserIdRoute
 }
@@ -218,6 +231,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/seller': {
       id: '/seller'
       path: '/seller'
@@ -244,6 +264,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocumentsRoute: DocumentsRoute,
   ProfileRoute: ProfileRoute,
   RequestsRoute: RequestsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SellerRoute: SellerRoute,
   UUserIdRoute: UUserIdRoute,
 }

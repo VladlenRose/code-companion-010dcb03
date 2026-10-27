@@ -27,7 +27,8 @@ function UserProfile() {
   const q = useQuery({ queryKey: ["public-profile", userId], queryFn: () => getPublicProfiles([userId]) });
   const p = q.data?.[userId];
   return (
-    <AppShell title={p?.name || p?.company || "Профиль участника"}>
+    <AppShell title={q.isPending ? "Загрузка профиля…" : p?.name || "Имя не указано"}>
+      {q.isError && <p role="alert" className="mb-4 text-sm text-destructive">Не удалось загрузить имя участника.</p>}
       {p?.company && <p className="-mt-3 mb-6 text-sm text-dim">{p.company}</p>}
       <ProfileRequests userId={userId} title="Все заявки участника" />
     </AppShell>

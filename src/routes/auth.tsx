@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { useServerFn } from "@tanstack/react-start";
 import { isValidInn } from "@/lib/inn";
 import { checkInn } from "@/lib/inn.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { passwordResetRedirect } from "@/lib/password-reset";
 
 const TITLE = "Вход и регистрация — AI-Mall";
 const DESCRIPTION =
@@ -30,7 +32,7 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "forgot";
 
 function errorText(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -51,6 +53,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("login");
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
@@ -66,6 +69,18 @@ function AuthPage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
+
+    if (mode === "forgot") {
+      if (!email.trim()) { toast.error("Укажите email"); return; }
+      setBusy(true);
+      try {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: passwordResetRedirect(window.location.origin) });
+        if (error) throw error;
+        setSent(true);
+      } catch (error) { toast.error(errorText(error)); }
+      finally { setBusy(false); }
+      return;
+    }
 
     if (!email.trim() || !password) {
       toast.error("Заполните email и пароль");
@@ -124,11 +139,11 @@ function AuthPage() {
 
         <div className="glass-panel mt-6 rounded-2xl p-7">
           <div className="flex gap-1 rounded-full bg-foreground/5 p-1">
-            {(["login", "register"] as Mode[]).map((m) => (
+            {(["login", "register"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={() => { setMode(m); setSent(false); }}
                 className={cn(
                   "flex-1 rounded-full px-4 py-2 text-sm transition-colors",
                   mode === m ? "bg-background text-ink shadow-sm" : "text-dim hover:text-ink",
@@ -140,15 +155,16 @@ function AuthPage() {
           </div>
 
           <h1 className="mt-6 text-xl font-semibold tracking-tight text-ink">
-            {mode === "login" ? "Вход в кабинет" : "Создание аккаунта"}
+            {mode === "forgot" ? "Восстановление пароля" : mode === "login" ? "Вход в кабинет" : "Создание аккаунта"}
           </h1>
           <p className="mt-1.5 text-sm text-dim">
-            {mode === "login"
+            {mode === "forgot" ? "Укажите почту вашего аккаунта." : mode === "login"
               ? "Продолжите переговоры и работу с документами."
               : "Зарегистрируйте компанию и подключите ИИ-агента."}
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={submit}>
+            {sent && <p role="status" className="text-sm text-brand">Если аккаунт с этой почтой существует, вам придёт письмо со ссылкой для смены пароля. Проверьте также папку «Спам».</p>}
             {mode === "register" && (
               <>
                 <div className="space-y-2">
@@ -197,7 +213,7 @@ function AuthPage() {
               />
             </div>
 
-            <div className="space-y-2">
+            {mode !== "forgot" && <div className="space-y-2">
               <Label htmlFor="a-password">Пароль</Label>
               <Input
                 id="a-password"
@@ -207,11 +223,13 @@ function AuthPage() {
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 placeholder="Минимум 8 символов"
               />
-            </div>
+            </div>}
+
+            {mode === "login" && <Button variant="link" type="button" className="h-auto p-0" onClick={() => { setMode("forgot"); setSent(false); }}>Забыли пароль?</Button>}
 
             <Button type="submit" variant="hero" className="h-11 w-full" disabled={busy}>
               {busy && <Loader2 className="size-4 animate-spin" />}
-              {mode === "login" ? "Войти" : "Зарегистрироваться"}
+              {mode === "forgot" ? sent ? "Отправить письмо повторно" : "Отправить письмо" : mode === "login" ? "Войти" : "Зарегистрироваться"}
             </Button>
           </form>
         </div>
