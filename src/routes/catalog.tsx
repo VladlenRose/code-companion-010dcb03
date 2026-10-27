@@ -13,6 +13,8 @@ import { createMessage, createThread, getPublicProfiles, imageUrl, listCatalogPr
 
 import { CATEGORIES, fallbackImage } from "@/lib/catalog-meta";
 import { cn } from "@/lib/utils";
+import { RequestOwner } from "@/components/request-owner";
+import { RequestDetails } from "@/components/request-details";
 
 const TITLE = "Каталог AI-Mall — товары от проверенных поставщиков";
 const DESCRIPTION =
@@ -274,6 +276,7 @@ function Catalog() {
 }
 
 function ProductRequests({ productId, count }: { productId: string; count: number }) {
+  const [selected, setSelected] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const q = useQuery({
     queryKey: ["product-requests", productId],
@@ -292,16 +295,18 @@ function ProductRequests({ productId, count }: { productId: string; count: numbe
       {open && (
         <ul className="mt-2 space-y-1.5">
           {(q.data ?? []).map((r) => (
-            <li key={r.id} className="flex items-center gap-2">
+            <li key={r.id} className="space-y-1 border-t border-border py-2">
+              <RequestOwner userId={r.owner_id} />
+              <Button variant="link" className="h-auto whitespace-normal p-0 text-left text-sm" onClick={() => setSelected(r.id)}>{r.title}</Button>
+              <div className="flex flex-wrap items-center gap-2">
               <span className="text-dim">{r.kind === "buy" ? "Покупка" : "Продажа"}</span>
-              <Link to="/u/$userId" params={{ userId: r.owner_id }} className="truncate text-ink hover:text-brand">
-                {r.owner?.company || r.owner?.name || "Участник"}
-              </Link>
               <span className="ml-auto font-mono text-dim">{new Date(r.created_at).toLocaleDateString("ru-RU")}</span>
+              </div>
             </li>
           ))}
         </ul>
       )}
+      <RequestDetails requestId={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }

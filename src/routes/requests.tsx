@@ -27,6 +27,7 @@ import { openNegotiation } from "@/lib/negotiations.functions";
 import { canBargain, requestSimilarity } from "@/lib/request-similarity";
 import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { VoiceButton } from "@/components/voice-button";
+import { RequestOwner } from "@/components/request-owner";
 
 const TITLE = "Торговые заявки AI-Mall — купить или продать с ИИ";
 const DESCRIPTION =
@@ -619,8 +620,10 @@ function RequestsPage() {
             ) : (
               <div className="space-y-2">
                 {rows.map(({ r, score }) => (
-                  <button key={r.id} type="button" onClick={() => setOpen(r)}
-                    className="glass-panel flex w-full items-center gap-4 rounded-xl p-4 text-left transition-shadow hover:shadow-lg">
+                  <div key={r.id} className="space-y-2">
+                  <RequestOwner userId={r.owner_id} />
+                  <Button variant="ghost" type="button" onClick={() => setOpen(r)}
+                    className="glass-panel flex h-auto w-full items-center gap-4 whitespace-normal rounded-lg p-4 text-left transition-shadow hover:shadow-lg">
                     
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -634,7 +637,8 @@ function RequestsPage() {
                       </div>
                     </div>
                     {ref && (score ? <AgreementBadge percent={agreementPercent(score as unknown as NegotiationSnapshot)} /> : <span className="text-xs text-dim">Торг…</span>)}
-                  </button>
+                  </Button>
+                  </div>
                 ))}
               </div>
             )}
@@ -650,7 +654,7 @@ function RequestsPage() {
                 </DialogHeader>
                 <div className="text-xs text-dim">
                   {open.kind === "buy" ? "Покупка" : "Продажа"} · {new Date(open.created_at).toLocaleDateString("ru-RU")} ·{" "}
-                  <Link to="/u/$userId" params={{ userId: open.owner_id }} className="text-brand hover:underline">Профиль автора</Link>
+                  <RequestOwner userId={open.owner_id} />
                 </div>
                 <dl className="divide-y divide-border text-sm">
                   {[...KEYS]

@@ -1,9 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { RequestOwner } from "./request-owner";
+import { RequestDetails } from "./request-details";
 
 import { listUserRequests } from "@/lib/api";
 
 export function ProfileRequests({ userId, title = "История заявок" }: { userId: string; title?: string }) {
+  const [selected, setSelected] = useState<string | null>(null);
   const q = useQuery({ queryKey: ["user-requests", userId], queryFn: () => listUserRequests(userId) });
   const rows = q.data ?? [];
   return (
@@ -16,16 +20,20 @@ export function ProfileRequests({ userId, title = "История заявок" 
       ) : (
         <ul className="mt-4 divide-y divide-border">
           {rows.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 py-2.5 text-sm">
+            <li key={r.id} className="space-y-2 py-3 text-sm">
+              <RequestOwner userId={userId} />
+              <div className="flex flex-wrap items-center gap-3">
               <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs text-dim">
                 {r.kind === "buy" ? "Покупка" : "Продажа"}
               </span>
-              <Link to="/requests" className="min-w-0 flex-1 truncate text-ink hover:text-brand">{r.title}</Link>
+              <Button variant="link" className="h-auto min-w-0 flex-1 justify-start whitespace-normal p-0 text-left text-ink" onClick={() => setSelected(r.id)}>{r.title}</Button>
               <span className="font-mono text-xs text-dim">{new Date(r.created_at).toLocaleDateString("ru-RU")}</span>
+              </div>
             </li>
           ))}
         </ul>
       )}
+      <RequestDetails requestId={selected} onClose={() => setSelected(null)} />
     </section>
   );
 }

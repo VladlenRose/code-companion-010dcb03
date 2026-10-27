@@ -25,6 +25,8 @@ import { agreementPercent } from "@/lib/agreement";
 import { canBargain, requestSimilarity } from "@/lib/request-similarity";
 import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { cn } from "@/lib/utils";
+import { RequestOwner } from "@/components/request-owner";
+import { RequestDetails } from "@/components/request-details";
 
 const TITLE = "Переговоры ИИ-агентов по заявкам — AI-Mall";
 const DESCRIPTION =
@@ -64,6 +66,7 @@ function Chat() {
   const [myId, setMyId] = useState<string | null>(null);
   const [otherId, setOtherId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("bots");
+  const [selected, setSelected] = useState<string | null>(null);
 
   const reqQuery = useQuery({ queryKey: ["trade_requests_all"], queryFn: loadRequests, enabled: !!user });
   const all = reqQuery.data ?? [];
@@ -105,18 +108,20 @@ function Chat() {
             </p>
           ) : (
             mine.map((r) => (
-              <button
-                key={r.id}
+              <div key={r.id} className="space-y-2 border-b border-border px-4 py-3 last:border-0">
+              <RequestOwner userId={r.owner_id} />
+              <Button variant="ghost"
                 type="button"
-                onClick={() => { setMyId(r.id); setOtherId(null); }}
+                onClick={() => { setMyId(r.id); setOtherId(null); setSelected(r.id); }}
                 className={cn(
-                  "flex w-full flex-col gap-1 border-b border-border px-4 py-3 text-left last:border-0",
+                  "flex h-auto w-full flex-col items-start gap-1 whitespace-normal p-2 text-left",
                   r.id === myId ? "bg-brand/6" : "hover:bg-foreground/4",
                 )}
               >
                 <span className="truncate text-sm font-medium text-ink">{r.title}</span>
                 <span className="text-xs text-dim">{kindLabel(r.kind)}</span>
-              </button>
+              </Button>
+              </div>
             ))
           )}
         </aside>
@@ -132,12 +137,13 @@ function Chat() {
             <p className="px-4 py-8 text-center text-sm text-dim">Встречных заявок пока нет.</p>
           ) : (
             matches.map(({ r, result }) => (
-              <button
-                key={r.id}
+              <div key={r.id} className="space-y-2 border-b border-border px-4 py-3 last:border-0">
+              <RequestOwner userId={r.owner_id} />
+              <Button variant="ghost"
                 type="button"
-                onClick={() => setOtherId(r.id)}
+                onClick={() => { setOtherId(r.id); setSelected(r.id); }}
                 className={cn(
-                  "flex w-full items-center justify-between gap-2 border-b border-border px-4 py-3 text-left last:border-0",
+                  "flex h-auto w-full items-center justify-between gap-2 whitespace-normal p-2 text-left",
                   r.id === otherId ? "bg-brand/6" : "hover:bg-foreground/4",
                 )}
               >
@@ -146,7 +152,8 @@ function Chat() {
                   <span className="text-xs text-dim">{kindLabel(r.kind)}</span>
                 </span>
                 <span className="shrink-0">{result ? <AgreementBadge percent={agreementPercent(result.snapshot as unknown as NegotiationSnapshot)} /> : <span className="text-xs text-dim">Торг не начат</span>}</span>
-              </button>
+              </Button>
+              </div>
             ))
           )}
         </aside>
@@ -160,7 +167,7 @@ function Chat() {
           ) : (
             <>
               <header className="border-b border-border px-6 py-4">
-                <div className="text-sm font-semibold text-ink">{my.title} ⇄ {other.title}</div>
+                <div className="grid gap-4 sm:grid-cols-2">{[my, other].map(r => <div key={r.id} className="space-y-2"><RequestOwner userId={r.owner_id} /><Button variant="link" className="h-auto whitespace-normal p-0 text-left" onClick={() => setSelected(r.id)}>{r.title}</Button></div>)}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <ModeBtn active={mode === "bots"} onClick={() => setMode("bots")} icon={Handshake}>Торг ботов</ModeBtn>
                   <ModeBtn active={mode === "agent"} onClick={() => setMode("agent")} icon={Bot}>Написать агенту</ModeBtn>
@@ -177,6 +184,7 @@ function Chat() {
         </section>
       </div>
       {isAdmin && <AdminNegotiations />}
+      <RequestDetails requestId={selected} onClose={() => setSelected(null)} />
     </AppShell>
   );
 }
