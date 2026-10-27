@@ -217,7 +217,7 @@ function RequestsPage() {
   async function remove(r: Stored) {
     if (!window.confirm(`Удалить заявку «${r.title}»?`)) return;
     const { data, error } = await supabase.from("trade_requests").delete().eq("id", r.id).select("id");
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(error.code === "23503" ? "У заявки есть связанные торги. Сначала администратор должен удалить их на странице «Чат-переговоры»." : error.message); return; }
     if (!data?.length) { toast.error("Нет прав на удаление этой заявки"); return; }
     setAll((a) => a.filter((x) => x.id !== r.id));
     if (ref?.id === r.id) setRef(null);
