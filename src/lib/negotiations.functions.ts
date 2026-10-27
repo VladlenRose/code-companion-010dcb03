@@ -5,6 +5,19 @@ import { withDefaults } from "./bargain";
 import { acceptCondition, conditionValuesSchema, humansAgreed, initialNegotiation, paramKeySchema, proposeCondition, type NegotiationSnapshot } from "./negotiation";
 import type { Json } from "@/integrations/supabase/types";
 import { canBargain, requestSimilarity } from "./request-similarity";
+import { assertAdminRole } from "./admin-authorization";
+
+export const deleteNegotiation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid(), version: z.number().int().positive() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: role, error } = await context.supabase.rpc("my_role");
+    assertAdminRole(role, error);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: id, error: writeError } = await supabaseAdmin.rpc("admin_delete_negotiation", { _id: data.id, _expected: data.version, _actor: context.userId });
+    if (writeError || !id) throw new Error(writeError?.message.includes("STALE_VERSION") ? "Условия торга изменились. Обновите список и подтвердите удаление заново." : "Торг не удалён. Обновите список и попробуйте снова.");
+    return { id };
+  });
 
 const pairSchema = z.object({ buyerId: z.string().uuid(), sellerId: z.string().uuid() });
 export const createContract = createServerFn({ method: "POST" })

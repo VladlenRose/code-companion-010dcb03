@@ -15,3 +15,4 @@
 - Parameter counteroffers use src/lib/negotiation.ts, preserve priorities, and reset human approvals only on the changed parameter; preview drafts never write to the database.
 - Post-bargain scoring uses src/lib/agreement.ts and is stored in each new snapshot; proximity never authorizes crossing limits, and only unanimous human approvals authorize the atomic contract-draft RPC.
 - Product similarity eligibility is shared via src/lib/request-similarity.ts and checked again by the authenticated negotiation opener; registry and chat display persisted negotiation results rather than preliminary match scores.
+- Admin negotiation deletion uses an authenticated server function plus an atomic service-only RPC with role and version checks; preserve requests and documents, delete versions before negotiations, and keep request deletion blocked by existing foreign keys to avoid implicit data loss.

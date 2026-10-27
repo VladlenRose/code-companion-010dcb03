@@ -6,6 +6,8 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { NegotiationCards } from "@/components/negotiation-cards";
+import { AdminNegotiations } from "@/components/admin-negotiations";
+import { useRole } from "@/hooks/use-role";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +60,7 @@ const kindLabel = (k: string) => (k === "buy" ? "Покупка" : "Продаж
 
 function Chat() {
   const { user } = useAuth();
+  const { isAdmin } = useRole();
   const [myId, setMyId] = useState<string | null>(null);
   const [otherId, setOtherId] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("bots");
@@ -173,6 +176,7 @@ function Chat() {
           )}
         </section>
       </div>
+      {isAdmin && <AdminNegotiations />}
     </AppShell>
   );
 }
