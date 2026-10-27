@@ -1,0 +1,224 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Archive, ImagePlus, Loader2, Lock, Pencil } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { AppShell } from "@/components/app-shell";
+import { EditProduct } from "@/components/edit-product";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  createProduct,
+  deleteProduct,
+  getProfile,
+  imageUrl,
+  listMyProducts,
+  listProductRequests,
+  productRequestCounts,
+  updateProduct,
+  uploadProductImage,
+  type Product,
+  type ProductKind,
+  type ProductStatus,
+} from "@/lib/api";
+
+import { CATEGORIES, fallbackImage } from "@/lib/catalog-meta";
+import { cn } from "@/lib/utils";
+import { useServerFn } from "@tanstack/react-start";
+import { refreshProductEmbeddings } from "@/lib/embeddings.functions";
+
+const TITLE = "Мои товары и услуги — кабинет продавца AI-Mall";
+const DESCRIPTION =
+  "Добавляйте товары, управляйте карточками и отслеживайте статусы: активен, на модерации, завершён.";
+
+export const Route = createFileRoute("/seller")({
+  head: () => ({
+    meta: [
+      { title: TITLE },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: TITLE },
+      { property: "og:description", content: DESCRIPTION },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: Seller,
+});
+
+const STATUS_STYLE: Record<ProductStatus, string> = {
+  Активен: "bg-brand/10 text-brand",
+  "На модерации": "bg-gold/15 text-gold",
+  Завершён: "bg-foreground/5 text-dim",
+  Архив: "bg-foreground/5 text-dim",
+};
+
+function Seller() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [unit, setUnit] = useState("шт");
+  const [category, setCategory] = useState<string>(CATEGORIES[1]);
+  const [description, setDescription] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [kind, setKind] = useState<ProductKind>("product");
+  const [a1, setA1] = useState("");
+  const [a2, setA2] = useState("");
+  const refreshEmb = useServerFn(refreshProductEmbeddings);
+
+  const productsQuery = useQuery({
+    queryKey: ["my-products", user?.id],
+    queryFn: () => listMyProducts(user!.id),
+    enabled: !!user,
+  });
+  const profileQuery = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: () => getProfile(user!.id),
+    enabled: !!user,
+  });
+
+  const items = productsQuery.data ?? [];
+  const countsQuery = useQuery({
+    queryKey: ["product-request-counts", items.map((p) => p.$id).join(",")],
+    queryFn: () => productRequestCounts(items.map((p) => p.$id)),
+    enabled: items.length > 0,
+  });
+  const counts = countsQuery.data ?? {};
+  const [edit, setEdit] = useState<Product | null>(null);
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("auth");
+      const imageId = file ? await uploadProductImage(file) : null;
+      return createProduct(user?.id, {
+        title: title.trim(),
+        description: description.trim(),
+        supplier: profileQuery.data?.company || user.name || "Мой бизнес",
+        category,
+        price: Number(price) || 0,
+        unit,
+        rating: 0,
+        imageId,
+        status: "Активен",
+        kind,
+        attrs: Object.fromEntries(Object.entries(kind === "service" ? { term: a1, rate: a2 } : { stock: a1, weight: a2 }).filter(([, v]) => v.trim())),
+      });
+    },
+    onSuccess: async () => {
+      setTitle("");
+      setPrice("");
+      setDescription("");
+      setFile(null);
+      setA1("");
+      setA2("");
+      void refreshEmb().catch(() => {});
+      await queryClient.invalidateQueries({ queryKey: ["my-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success(kind === "service" ? "Услуга опубликована" : "Товар опубликован");
+    },
+    onError: () => toast.error("Не удалось сохранить товар"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteProduct(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["my-products"] });
+      await queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Товар удалён");
+    },
+    onError: () => toast.error("Не удалось удалить товар"),
+  });
+
+  const imageOf = (p: Product) => imageUrl(p.imageId) ?? fallbackImage(p.$id);
+
+  return (
+    <AppShell title="Каталог · Мои товары и услуги">
+      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <div className="glass-panel h-fit rounded-2xl p-6 text-sm text-dim">
+          <h2 className="text-base font-semibold text-ink">Как добавить товар или услугу</h2>
+          <p className="mt-3">Товары и услуги создаются только через заявку. Создайте заявку на продажу или покупку — карточка появится в каталоге и здесь.</p>
+          <Link to="/requests" className="mt-4 inline-block font-medium text-brand hover:underline">Создать заявку →</Link>
+        </div>
+
+        <section className="glass-panel overflow-hidden rounded-2xl">
+          <div className="border-b border-border px-6 py-4 text-base font-semibold text-ink">
+            Товары и услуги · {items.length}
+          </div>
+          {productsQuery.isLoading ? (
+            <div className="grid place-items-center py-16">
+              <Loader2 className="size-5 animate-spin text-brand" />
+            </div>
+          ) : items.length === 0 ? (
+            <p className="px-6 py-16 text-center text-sm text-dim">
+              Пока нет товаров и услуг. Добавьте первый — он сразу появится в каталоге.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {items.map((p) => (
+                <li key={p.$id} className="flex flex-wrap items-center gap-4 px-6 py-4">
+                  <img
+                    src={imageOf(p)}
+                    alt={p.title}
+                    loading="lazy"
+                    className="size-14 rounded-xl object-cover"
+                  />
+                  <div className="min-w-40 flex-1">
+                    <div className="text-sm font-medium text-ink">{p.title}</div>
+                    <div className="text-xs text-dim">
+                      {p.kind === "service" ? "Услуга" : "Товар"} · {p.category} · {p.price.toLocaleString("ru-RU")} ₽/{p.unit ?? "шт"}
+                    </div>
+                  </div>
+                  {counts[p.$id] ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-3 py-1 text-xs text-gold" title="По товару есть заявки — название и характеристики зафиксированы">
+                      <Lock className="size-3" /> Зафиксирован · заявок: {counts[p.$id]}
+                    </span>
+                  ) : null}
+                  <span className={cn("rounded-full px-3 py-1 text-xs", STATUS_STYLE[p.status])}>
+                    {p.status}
+                  </span>
+                  <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => setEdit(p)}>
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Удалить"
+                    onClick={() => remove.mutate(p.$id)}
+                  >
+                    <Archive className="size-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+      {edit && (
+        <EditProduct
+          product={edit}
+          locked={!!counts[edit.$id]}
+          onClose={() => setEdit(null)}
+          onSaved={async () => {
+            setEdit(null);
+            await queryClient.invalidateQueries({ queryKey: ["my-products"] });
+            await queryClient.invalidateQueries({ queryKey: ["products"] });
+          }}
+        />
+      )}
+    </AppShell>
+  );
+}
+

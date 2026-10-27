@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791934339003,
+      "tag": "0000_product_lock_and_request_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791934634705,
+      "tag": "0001_products_from_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791936620253,
+      "tag": "0002_admin_unowned_products_and_merge",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792103499737,
+      "tag": "0003_product_kind_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792540271887,
+      "tag": "0004_negotiation_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792842160025,
+      "tag": "0005_negotiation_contract_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793133451717,
+      "tag": "0006_catalog_via_requests_public_profiles",
+      "breakpoints": true
+    }
+  ]
+}

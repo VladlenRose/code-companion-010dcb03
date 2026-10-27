@@ -1,0 +1,691 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { Loader2, Search, Sparkles, Upload, X, Reply, ScanText } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+
+import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/use-auth";
+import { useRole } from "@/hooks/use-role";
+import { uploadProductImage } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
+import { analyzeRequestText } from "@/lib/requests.functions";
+import { recognizeImageText } from "@/lib/ocr.functions";
+import { ProductPicker, useProductSearch, type PickedProduct } from "@/components/product-picker";
+import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { AgreementBadge } from "@/components/agreement-badge";
+import { agreementPercent } from "@/lib/agreement";
+import { openNegotiation } from "@/lib/negotiations.functions";
+import { canBargain, requestSimilarity } from "@/lib/request-similarity";
+import type { NegotiationSnapshot } from "@/lib/negotiation";
+import { VoiceButton } from "@/components/voice-button";
+
+const TITLE = "Торговые заявки AI-Mall — купить или продать с ИИ";
+const DESCRIPTION =
+  "Создайте заявку на покупку или продажу: ИИ разберёт текст, а система подберёт встречные предложения.";
+
+export const Route = createFileRoute("/requests")({
+  head: () => ({
+    meta: [
+      { title: TITLE },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: TITLE },
+      { property: "og:description", content: DESCRIPTION },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: RequestsPage,
+});
+
+type Kind = "sell" | "buy";
+type ParamKey = "qty" | "price" | "term" | "payment" | "basis" | "warranty" | "regularity";
+type Param = {
+  priority: number;
+  ignore: boolean;
+  min: string;
+  max: string;
+  unit: string;
+  value: string;
+};
+type Params = Record<ParamKey, Param>;
+
+const LABELS: Record<ParamKey, string> = {
+  qty: "Количество",
+  price: "Цена",
+  term: "Сроки поставки",
+  payment: "Условия оплаты",
+  basis: "Базис поставки",
+  warranty: "Гарантия и приемка",
+  regularity: "Регулярность",
+};
+const OPTIONS: Partial<Record<ParamKey, string[]>> = {
+  payment: ["100% предоплата", "50/50", "постоплата", "отсрочка"],
+  basis: ["самовывоз", "доставка силами поставщика", "ТК"],
+  regularity: ["разовая", "еженедельно", "ежемесячно"],
+};
+const RANGE: Partial<Record<ParamKey, string>> = { qty: "", price: "₽", term: "дней" };
+const KEYS = Object.keys(LABELS) as ParamKey[];
+
+const emptyParam = (): Param => ({ priority: 50, ignore: false, min: "", max: "", unit: "", value: "" });
+const emptyParams = (): Params =>
+  Object.fromEntries(KEYS.map((k) => [k, emptyParam()])) as Params;
+
+type Stored = { id: string; owner_id: string; kind: Kind; title: string; params: Params; extra: string | null; created_at: string; response_to: string | null; attachment_url: string | null; product_id: string | null };
+type Zone = "green" | "yellow" | "red";
+type Ref = { kind: Kind; params: Params; id: string; productId: string };
+
+const n = (s: string) => (s.trim() === "" ? null : Number(s));
+
+function fmtParam(k: ParamKey, p?: Param) {
+  if (!p) return "—";
+  if (p.ignore) return "Не важно";
+  if (RANGE[k] !== undefined) {
+    if (!p.min && !p.max) return "—";
+    return `${p.min || "…"} — ${p.max || "…"} ${k === "qty" ? p.unit : RANGE[k]}`.trim();
+  }
+  return p.value || "—";
+}
+
+function RequestsPage() {
+  const { user } = useAuth();
+  const analyze = useServerFn(analyzeRequestText);
+  const ocr = useServerFn(recognizeImageText);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const ocrInput = useRef<HTMLInputElement>(null);
+  const [kind, setKind] = useState<Kind>("buy");
+  const [text, setText] = useState("");
+  const [seed, setSeed] = useState("");
+  const findProducts = useProductSearch();
+  const [product, setProduct] = useState<PickedProduct | null>(null);
+  const [params, setParams] = useState<Params>(emptyParams);
+  const [extra, setExtra] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [mode, setMode] = useState<"form" | "registry">("form");
+  const [all, setAll] = useState<Stored[]>([]);
+  const [loadingAll, setLoadingAll] = useState(false);
+  const [filter, setFilter] = useState<"all" | "buy" | "sell" | "mine">("all");
+  const [query, setQuery] = useState("");
+  const [ref, setRef] = useState<Ref | null>(null);
+  const [sims, setSims] = useState<Record<string, number>>({});
+  const [open, setOpen] = useState<Stored | null>(null);
+  const [respondTo, setRespondTo] = useState<Stored | null>(null);
+  const [editing, setEditing] = useState<Stored | null>(null);
+  const { isAdmin } = useRole();
+
+  async function loadAll() {
+    setLoadingAll(true);
+    const { data, error } = await supabase
+      .from("trade_requests")
+      .select("id, owner_id, kind, title, params, extra, created_at, response_to, attachment_url, product_id")
+      .order("created_at", { ascending: false })
+      .limit(300);
+    setLoadingAll(false);
+    if (error) { toast.error(error.message); return; }
+    setAll((data ?? []) as unknown as Stored[]);
+  }
+  useEffect(() => { if (mode === "registry") void loadAll(); }, [mode]);
+
+  // Смысловая близость товаров (эмбеддинги) между моей заявкой и остальными
+  useEffect(() => {
+    if (!ref) { setSims({}); return; }
+    const ids = [...new Set(all.map((r) => r.product_id).filter((x): x is string => !!x))];
+    if (!ids.length) return;
+    void supabase.rpc("product_pair_similarity", { _ref: ref.productId, _ids: ids }).then(({ data }) => {
+      setSims(Object.fromEntries((data ?? []).map((d) => [d.product_id, d.similarity])));
+    });
+  }, [ref, all]);
+
+  const runBargain = useServerFn(openNegotiation);
+  const similarityFor = (r: Stored) => {
+    const my = all.find(item => item.id === ref?.id);
+    return my ? requestSimilarity(my, r, r.product_id ? sims[r.product_id] : undefined) : 0;
+  };
+  const results = useQuery({
+    queryKey: ["registry-negotiations", ref?.id], enabled: !!ref,
+    queryFn: async () => {
+      if (!ref) return [];
+      const { data, error } = await supabase.from("request_negotiations").select("buyer_request_id,seller_request_id,snapshot").or(`buyer_request_id.eq.${ref.id},seller_request_id.eq.${ref.id}`);
+      if (error) throw error;
+      return data ?? [];
+    }, refetchInterval: 10000,
+  });
+  useEffect(() => {
+    if (!ref) return;
+    let cancelled = false;
+    const run = async () => {
+      for (const r of all.filter(r => r.owner_id !== user?.id && r.kind !== ref.kind && canBargain(similarityFor(r)))) {
+        if (cancelled) return;
+        try { await runBargain({ data: { buyerId: ref.kind === "buy" ? ref.id : r.id, sellerId: ref.kind === "sell" ? ref.id : r.id } }); }
+        catch { toast.error("Не удалось провести торг по одной из заявок."); }
+      }
+      if (!cancelled) await results.refetch();
+    };
+    void run();
+    return () => { cancelled = true; };
+  }, [ref, all, sims]);
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = all
+      .filter((r) => filter === "all" || (filter === "mine" ? r.owner_id === user?.id : r.kind === filter))
+      .filter((r) => !q || r.title.toLowerCase().includes(q) || (r.extra ?? "").toLowerCase().includes(q))
+      // При активном подборе пар свои заявки из соответствий исключаем
+      .filter((r) => !ref || r.owner_id !== user?.id)
+      .filter((r) => !ref || (r.kind !== ref.kind && canBargain(similarityFor(r))))
+      .map((r) => ({ r, score: results.data?.find(n => n.buyer_request_id === (ref?.kind === "buy" ? ref.id : r.id) && n.seller_request_id === (ref?.kind === "sell" ? ref.id : r.id))?.snapshot }));
+    return list;
+  }, [all, filter, query, ref, sims, user?.id, results.data]);
+
+  function pickFrom(r: Stored): PickedProduct | null {
+    return r.product_id ? { id: r.product_id, title: r.title, category: null, unit: null } : null;
+  }
+
+  function respond(r: Stored) {
+    setRespondTo(r);
+    setKind(r.kind === "buy" ? "sell" : "buy");
+    setProduct(pickFrom(r));
+    if (!r.product_id) setSeed(r.title);
+    setParams({ ...emptyParams(), ...r.params });
+    setExtra("");
+    setOpen(null);
+    setMode("form");
+    window.scrollTo({ top: 0 });
+  }
+  function startEdit(r: Stored) {
+    setEditing(r);
+    setRespondTo(null);
+    setKind(r.kind);
+    setProduct(pickFrom(r));
+    if (!r.product_id) setSeed(r.title);
+    setParams({ ...emptyParams(), ...r.params });
+    setExtra(r.extra ?? "");
+    setOpen(null);
+    setMode("form");
+    window.scrollTo({ top: 0 });
+  }
+  async function remove(r: Stored) {
+    if (!window.confirm(`Удалить заявку «${r.title}»?`)) return;
+    const { data, error } = await supabase.from("trade_requests").delete().eq("id", r.id).select("id");
+    if (error) { toast.error(error.message); return; }
+    if (!data?.length) { toast.error("Нет прав на удаление этой заявки"); return; }
+    setAll((a) => a.filter((x) => x.id !== r.id));
+    if (ref?.id === r.id) setRef(null);
+    setOpen(null);
+    toast.success("Заявка удалена");
+  }
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const sorted = useMemo(
+    () => [...KEYS].sort((a, b) => params[b].priority - params[a].priority),
+    [params],
+  );
+
+  const setP = (k: ParamKey, patch: Partial<Param>) =>
+    setParams((p) => ({ ...p, [k]: { ...p[k], ...patch } }));
+
+  // Ориентир: похожие активные заявки по выбранному товару (или названию) — только подсказка, условия не меняет
+  const [market, setMarket] = useState<Stored[] | null>(null);
+  useEffect(() => {
+    if (mode !== "form") return;
+    let cancelled = false;
+    setMarket(null);
+    const load = async () => {
+      if (!product && seed.trim().length < 4) { if (!cancelled) setMarket([]); return; }
+      let q = supabase.from("trade_requests").select("id, owner_id, kind, title, params, extra, created_at, response_to, attachment_url, product_id").order("created_at", { ascending: false }).limit(100);
+      q = product ? q.eq("product_id", product.id) : q.ilike("title", `%${seed.trim()}%`);
+      const { data } = await q;
+      if (!cancelled) setMarket(((data ?? []) as unknown as Stored[]).filter((r) => r.id !== editing?.id));
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [mode, product, seed, editing?.id]);
+
+  const hints = useMemo(() => {
+    const out = {} as Record<ParamKey, string | null>;
+    for (const k of KEYS) {
+      out[k] = null;
+      if (!market?.length) continue;
+      const ps = market.map((r) => r.params?.[k]).filter((p): p is Param => !!p && !p.ignore);
+      if (RANGE[k] !== undefined) {
+        const nums = ps.flatMap((p) => [n(p.min), n(p.max)].filter((x): x is number => x !== null && Number.isFinite(x)));
+        if (!nums.length) continue;
+        const unit = k === "qty" ? (ps.find((p) => p.unit)?.unit ?? "") : RANGE[k];
+        out[k] = `${Math.min(...nums).toLocaleString("ru-RU")} — ${Math.max(...nums).toLocaleString("ru-RU")} ${unit}`.trim();
+      } else {
+        const counts = new Map<string, number>();
+        for (const p of ps) { const v = p.value.trim().toLowerCase(); if (v) counts.set(v, (counts.get(v) ?? 0) + 1); }
+        const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+        if (top) out[k] = `чаще: ${top[0]}`;
+      }
+    }
+    return out;
+  }, [market]);
+
+  async function runOcr(f: File) {
+    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf && !f.type.startsWith("image/")) { toast.error("Загрузите изображение или PDF"); return; }
+    if (f.size > 10 * 1024 * 1024) { toast.error("Файл больше 10 МБ"); return; }
+    setOcrBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result));
+        fr.onerror = () => rej(new Error("Не удалось прочитать файл"));
+        fr.readAsDataURL(f);
+      });
+      const fixed = isPdf ? dataUrl.replace(/^data:[^;]*;/, "data:application/pdf;") : dataUrl;
+      const { text: recognized } = await ocr({ data: { image: fixed, name: f.name } });
+      if (!recognized.trim()) { toast.error("Текст на изображении не найден"); return; }
+      setText(recognized);
+      toast.success("Текст распознан, разбираю параметры…");
+      await runAnalyze(recognized);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось распознать текст");
+    } finally {
+      setOcrBusy(false);
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void runOcr(file);
+          break;
+        }
+      }
+    }
+  }
+
+  
+  async function runAnalyze(src?: string) {
+    const input = (src ?? text).trim();
+    if (!input) { toast.error("Введите текст заявки"); return; }
+    setAnalyzing(true);
+    try {
+      const r = await analyze({ data: { text: input.slice(0, 5000) } });
+      const s = (v: number | null) => (v === null ? "" : String(Math.round(v * 100) / 100));
+      // Пустое в тексте остаётся пустым — ничего не досочиняем
+      setParams((p) => ({
+        ...p,
+        qty: { ...p.qty, min: s(r.qtyMin), max: s(r.qtyMax), unit: r.qtyUnit ?? "" },
+        price: { ...p.price, min: s(r.priceMin), max: s(r.priceMax) },
+        term: { ...p.term, min: s(r.termMin), max: s(r.termMax) },
+        payment: { ...p.payment, value: r.payment ?? "" },
+        basis: { ...p.basis, value: r.basis ?? "" },
+        warranty: { ...p.warranty, value: r.warranty ?? "" },
+        regularity: { ...p.regularity, value: r.regularity ?? "" },
+      }));
+      if (r.title && !product) {
+        const found = await findProducts(r.title, 0.85).catch(() => []);
+        if (found[0]) {
+          setProduct(found[0]);
+          toast.success(`Поля заполнены, выбрана карточка «${found[0].title}»`);
+        } else {
+          setSeed(r.title);
+          toast.success("Поля заполнены. Выберите карточку или создайте новую");
+        }
+      } else {
+        toast.success("Поля заполнены по тексту");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Не удалось проанализировать");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function search() {
+    if (!user) return;
+    if (!product) { toast.error("Выберите товар или услугу из каталога либо создайте карточку"); return; }
+    const title = product.title;
+    setSearching(true);
+    try {
+      let attachment: string | null = null;
+      if (file) attachment = await uploadProductImage(file);
+      let savedId: string;
+      if (editing) {
+        const { data: upd, error } = await supabase
+          .from("trade_requests")
+          .update({
+            kind,
+            title,
+            params: params as never,
+            extra: extra || null,
+            ...(attachment ? { attachment_url: attachment } : {}),
+            product_id: product.id,
+          })
+          .eq("id", editing.id)
+          .select("id");
+        if (error) throw error;
+        if (!upd?.length) throw new Error("Нет прав на редактирование этой заявки");
+        savedId = editing.id;
+      } else {
+        const { data: saved, error } = await supabase
+          .from("trade_requests")
+          .insert({
+            owner_id: user.id,
+            kind,
+            title,
+            params: params as never,
+            extra: extra || null,
+            attachment_url: attachment,
+            response_to: respondTo?.id ?? null,
+            product_id: product.id,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        savedId = saved.id;
+      }
+      setRef({ kind, params, id: savedId, productId: product.id });
+      setRespondTo(null);
+      setEditing(null);
+      setFilter(kind === "buy" ? "sell" : "buy");
+      setQuery("");
+      setMode("registry");
+      toast.success(editing ? "Заявка обновлена" : "Заявка сохранена");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка сохранения");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  return (
+    <AppShell title="Торговые заявки">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div className="flex gap-2 border-b border-border">
+          {([["form", "Создать заявку"], ["registry", "Реестр рынка"]] as const).map(([m, l]) => (
+            <button key={m} type="button" onClick={() => setMode(m)}
+              className={cn("-mb-px border-b-2 px-4 py-2 text-sm font-medium", mode === m ? "border-brand text-ink" : "border-transparent text-dim hover:text-ink")}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {mode === "form" ? (<>
+        {mode === "form" && editing && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-2 text-sm text-dim">
+            <span>Редактирование заявки: <b className="text-ink">{editing.title}</b></span>
+            <button type="button" className="text-brand underline" onClick={() => { setEditing(null); setProduct(null); setParams(emptyParams()); setExtra(""); }}>Отменить</button>
+          </div>
+        )}
+        {respondTo && (
+          <div className="flex items-center justify-between rounded-xl border border-brand/30 bg-brand/5 px-4 py-3 text-sm text-ink">
+            <span>Встречная заявка на: <b>{respondTo.title}</b> ({respondTo.kind === "buy" ? "покупка" : "продажа"})</span>
+            <Button variant="ghost" size="sm" onClick={() => setRespondTo(null)}><X className="size-4" /></Button>
+          </div>
+        )}
+        <div className="inline-flex rounded-full border border-border bg-background p-1">
+          {(["sell", "buy"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKind(k)}
+              className={cn(
+                "rounded-full px-6 py-2 text-sm font-medium transition-colors",
+                kind === k ? "bg-brand text-brand-foreground" : "text-dim hover:text-ink",
+              )}
+            >
+              {k === "sell" ? "Продать" : "Купить"}
+            </button>
+          ))}
+        </div>
+
+        <section className="glass-panel space-y-3 rounded-2xl p-6">
+          <h2 className="text-base font-semibold text-ink">Текст заявки</h2>
+          <Textarea
+            rows={6}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onPaste={handlePaste}
+            placeholder="Например: Купим 500 кружек с логотипом по 250 ₽, поставка за 14 дней, оплата 50/50, доставка ТК"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setText("")}>Очистить текст</Button>
+            <input
+              ref={ocrInput}
+              type="file"
+              accept="image/*,application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void runOcr(f); }}
+            />
+            <Button variant="outline" onClick={() => ocrInput.current?.click()} disabled={ocrBusy || analyzing}>
+              {ocrBusy ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
+              {ocrBusy ? "Распознаю…" : "Загрузить фото / PDF"}
+            </Button>
+            <VoiceButton disabled={ocrBusy || analyzing} onText={(t) => setText((prev) => (prev.trim() ? prev.trim() + " " : "") + t)} />
+            <Button onClick={() => runAnalyze()} disabled={analyzing || ocrBusy}>
+              {analyzing ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              Анализировать текст
+            </Button>
+          </div>
+        </section>
+
+        <section className="glass-panel space-y-4 rounded-2xl p-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-ink">Товар или услуга из каталога</label>
+            <ProductPicker value={product} onChange={setProduct} seed={seed} />
+          </div>
+
+          <div className="space-y-3">
+            {sorted.map((k) => {
+              const p = params[k];
+              return (
+                <div key={k} className="grid gap-4 rounded-xl border border-border bg-background/60 p-4 md:grid-cols-[180px_1fr]">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-dim">
+                      <span>Приоритет</span>
+                      <span className="font-mono text-ink">{p.priority}%</span>
+                    </div>
+                    <Slider
+                      className="mt-3"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={[p.priority]}
+                      onValueChange={([v]) => setP(k, { priority: v ?? 0 })}
+                    />
+                  </div>
+                  <div className={cn("space-y-2", p.ignore && "opacity-50")}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-ink">{LABELS[k]}</span>
+                      <label className="flex items-center gap-2 text-xs text-dim">
+                        <Checkbox checked={p.ignore} onCheckedChange={(v) => setP(k, { ignore: v === true })} />
+                        Не важно
+                      </label>
+                    </div>
+                    {RANGE[k] !== undefined ? (
+                      <div className="flex items-center gap-2">
+                        <Input disabled={p.ignore} type="number" placeholder="Мин" value={p.min} onChange={(e) => setP(k, { min: e.target.value })} />
+                        <span className="text-dim">—</span>
+                        <Input disabled={p.ignore} type="number" placeholder="Макс" value={p.max} onChange={(e) => setP(k, { max: e.target.value })} />
+                        {k === "qty" ? (
+                          <Input disabled={p.ignore} className="w-28" placeholder="ед. изм." value={p.unit} onChange={(e) => setP(k, { unit: e.target.value })} />
+                        ) : (
+                          <span className="w-12 text-sm text-dim">{RANGE[k]}</span>
+                        )}
+                      </div>
+                    ) : OPTIONS[k] ? (
+                      <div className="flex flex-wrap gap-2">
+                        {OPTIONS[k]!.map((o) => (
+                          <button
+                            key={o}
+                            type="button"
+                            disabled={p.ignore}
+                            onClick={() => setP(k, { value: p.value === o ? "" : o })}
+                            className={cn(
+                              "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                              p.value === o ? "border-brand bg-brand text-brand-foreground" : "border-border text-dim hover:text-ink",
+                            )}
+                          >
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <Input disabled={p.ignore} value={p.value} onChange={(e) => setP(k, { value: e.target.value })} placeholder="Условия гарантии и приемки" />
+                    )}
+                    {!p.ignore && market === null && (product || seed.trim().length >= 4) && (
+                      <p className="text-xs text-dim">Анализирую похожие заявки…</p>
+                    )}
+                    {!p.ignore && hints[k] && (
+                      <p className="text-xs text-brand">Ориентир по {market?.length ?? 0} похожим заявкам: {hints[k]}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-ink">Дополнительная информация</label>
+              <Button variant="ghost" size="sm" onClick={() => setExtra("")}>
+                <X className="size-4" /> Очистить
+              </Button>
+            </div>
+            <Textarea className="mt-2" rows={3} value={extra} onChange={(e) => setExtra(e.target.value)} />
+            <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <div className="mt-2 flex items-center gap-3">
+              <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                <Upload className="size-4" /> Загрузить фото / спецификацию
+              </Button>
+              {file && (
+  <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 py-1 text-xs">
+    <span className="max-w-[220px] truncate text-foreground">{file.name}</span>
+    <button
+      type="button"
+      onClick={() => {
+        setFile(null);
+        if (fileRef.current) fileRef.current.value = "";
+      }}
+      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+      title="Удалить прикрепленный файл"
+    >
+      <X className="size-3.5" />
+    </button>
+  </div>
+)}
+
+            </div>
+          </div>
+
+          <Button variant="hero" className="h-12 w-full" onClick={search} disabled={searching}>
+            {searching ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+            Поиск соответствий
+          </Button>
+        </section>
+
+        </>) : (
+          <section className="space-y-4">
+            {ref && (
+              <div className="rounded-xl border border-border bg-background/60 px-4 py-3 text-sm text-dim">
+                Ваша заявка сохранена. Результаты торга по встречным заявкам:
+                <Button variant="link" size="sm" onClick={() => setRef(null)}>Сбросить подбор</Button><Link to="/chat" className="text-brand underline">Переговоры</Link>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {([["all", "Все"], ["buy", "Покупка"], ["sell", "Продажа"], ["mine", "Мои заявки"]] as const).map(([f, l]) => (
+                <button key={f} type="button" onClick={() => setFilter(f)}
+                  className={cn("rounded-full border px-4 py-1.5 text-sm", filter === f ? "border-brand bg-brand text-brand-foreground" : "border-border text-dim hover:text-ink")}>
+                  {l}
+                </button>
+              ))}
+              <Input className="ml-auto w-full sm:w-64" placeholder="Поиск по заявкам" value={query} onChange={(e) => setQuery(e.target.value)} />
+            </div>
+            {loadingAll ? (
+              <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-brand" /></div>
+            ) : rows.length === 0 ? (
+              <p className="glass-panel rounded-2xl p-6 text-sm text-dim">
+                {ref ? "Пока нет встречных предложений по данному товару. Ваша заявка сохранена и ожидает контрагентов." : "Заявок пока нет."}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {rows.map(({ r, score }) => (
+                  <button key={r.id} type="button" onClick={() => setOpen(r)}
+                    className="glass-panel flex w-full items-center gap-4 rounded-xl p-4 text-left transition-shadow hover:shadow-lg">
+                    
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-xs text-dim">{r.kind === "buy" ? "Покупка" : "Продажа"}</span>
+                        {r.owner_id === user?.id && <span className="text-xs text-brand">Моя</span>}
+                        {r.response_to && <span className="text-xs text-dim">встречная</span>}
+                      </div>
+                      <div className="mt-1 truncate text-sm font-medium text-ink">{r.title}</div>
+                      <div className="mt-0.5 truncate text-xs text-dim">
+                        Цена: {fmtParam("price", r.params?.price)} · Кол-во: {fmtParam("qty", r.params?.qty)}
+                      </div>
+                    </div>
+                    {ref && (score ? <AgreementBadge percent={agreementPercent(score as unknown as NegotiationSnapshot)} /> : <span className="text-xs text-dim">Торг…</span>)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        <Dialog open={!!open} onOpenChange={(v) => !v && setOpen(null)}>
+          <DialogContent className="max-w-lg">
+            {open && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{open.title}</DialogTitle>
+                </DialogHeader>
+                <div className="text-xs text-dim">
+                  {open.kind === "buy" ? "Покупка" : "Продажа"} · {new Date(open.created_at).toLocaleDateString("ru-RU")} ·{" "}
+                  <Link to="/u/$userId" params={{ userId: open.owner_id }} className="text-brand hover:underline">Профиль автора</Link>
+                </div>
+                <dl className="divide-y divide-border text-sm">
+                  {[...KEYS]
+                    .sort((a, b) => (open.params?.[b]?.priority ?? 0) - (open.params?.[a]?.priority ?? 0))
+                    .map((k) => (
+                      <div key={k} className="flex justify-between gap-4 py-2">
+                        <dt className="text-dim">{LABELS[k]} <span className="font-mono text-xs">({open.params?.[k]?.priority ?? 0}%)</span></dt>
+                        <dd className="text-right text-ink">{fmtParam(k, open.params?.[k])}</dd>
+                      </div>
+                    ))}
+                </dl>
+                {open.extra && <p className="text-sm text-dim">{open.extra}</p>}
+                {open.attachment_url && (
+                  <a href={open.attachment_url} target="_blank" rel="noreferrer" className="text-sm text-brand underline">Вложение</a>
+                )}
+                {open.owner_id !== user?.id && (
+                  <Button variant="hero" className="h-11 w-full" onClick={() => respond(open)}>
+                    <Reply className="size-4" /> Откликнуться встречной заявкой
+                  </Button>
+                )}
+                {(open.owner_id === user?.id || isAdmin) && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="h-10 flex-1 rounded-full" onClick={() => startEdit(open)}>
+                      Редактировать
+                    </Button>
+                    <Button variant="outline" className="h-10 flex-1 rounded-full text-destructive" onClick={() => void remove(open)}>
+                      Удалить
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AppShell>
+  );
+}
