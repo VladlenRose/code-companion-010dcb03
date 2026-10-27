@@ -487,6 +487,7 @@ export type Database = {
         }
         Returns: string
       }
+      delete_catalog_product: { Args: { _id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
