@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { GitMerge, Pencil } from "lucide-react";
 
 import { EditProduct } from "@/components/edit-product";
+import { DeleteProductButton } from "@/components/delete-product-button";
 import { Button } from "@/components/ui/button";
 import { listCatalogProducts, listUnownedProducts, mergeProducts, productRequestCounts, type Product } from "@/lib/api";
 
@@ -57,6 +58,7 @@ export function AdminProducts() {
                 </div>
               </div>
               <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => setEdit(p)}><Pencil className="size-4" /></Button>
+              <DeleteProductButton product={p} />
             </li>
           ))}
           {unowned.data?.length === 0 && <li className="py-2 text-sm text-dim">Таких товаров нет</li>}

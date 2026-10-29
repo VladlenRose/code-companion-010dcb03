@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/app-shell";
 import { EditProduct } from "@/components/edit-product";
+import { DeleteProductButton } from "@/components/delete-product-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -132,16 +133,6 @@ function Seller() {
     onError: () => toast.error("Не удалось сохранить товар"),
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteProduct(id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["my-products"] });
-      await queryClient.invalidateQueries({ queryKey: ["products"] });
-      toast.success("Товар удалён");
-    },
-    onError: () => toast.error("Не удалось удалить товар"),
-  });
-
   const imageOf = (p: Product) => imageUrl(p.imageId) ?? fallbackImage(p.$id);
 
   return (
@@ -192,14 +183,7 @@ function Seller() {
                   <Button variant="ghost" size="icon" aria-label="Редактировать" onClick={() => setEdit(p)}>
                     <Pencil className="size-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Удалить"
-                    onClick={() => remove.mutate(p.$id)}
-                  >
-                    <Archive className="size-4" />
-                  </Button>
+                  <DeleteProductButton product={p} />
                 </li>
               ))}
             </ul>

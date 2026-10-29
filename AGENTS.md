@@ -17,4 +17,6 @@
 - Product similarity eligibility is shared via src/lib/request-similarity.ts and checked again by the authenticated negotiation opener; registry and chat display persisted negotiation results rather than preliminary match scores.
 - Admin negotiation deletion uses an authenticated server function plus an atomic service-only RPC with role and version checks; preserve requests and documents, delete versions before negotiations, and keep request deletion blocked by existing foreign keys to avoid implicit data loss.
 - RequestOwner uses the safe public profile RPC for participant names; RequestDetails opens existing requests by ID without navigating to the creation form, shared by chat, catalog, and profile history.
+- Public participant names fall back to registration metadata through the safe profile RPC; profile saves invalidate all participant-name queries so requests reflect changes immediately.
+- Catalog deletion uses an atomic authenticated RPC with database-checked owner/admin permissions, preserves request snapshots and negotiations, and shares one confirmation control across catalog, seller and admin views.
 - Password recovery uses Cloud Auth email links to the public /reset-password route; only recovery links/sessions show the new-password form, with no custom token storage or email infrastructure.
