@@ -15,6 +15,9 @@ import { CATEGORIES, fallbackImage } from "@/lib/catalog-meta";
 import { cn } from "@/lib/utils";
 import { RequestOwner } from "@/components/request-owner";
 import { RequestDetails } from "@/components/request-details";
+import { DeleteProductButton } from "@/components/delete-product-button";
+import { useRole } from "@/hooks/use-role";
+import { canDeleteProduct } from "@/lib/product-permissions";
 
 const TITLE = "Каталог AI-Mall — товары от проверенных поставщиков";
 const DESCRIPTION =
@@ -36,6 +39,7 @@ export const Route = createFileRoute("/catalog")({
 
 function Catalog() {
   const { user } = useAuth();
+  const { isAdmin } = useRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -241,7 +245,10 @@ function Catalog() {
                     <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-dim">{p.category || "Без категории"}</span>
                   </div>
                   <div className="mt-1.5 text-xs text-dim">{p.supplier}</div>
-                  <h3 className="mt-1.5 text-sm font-medium leading-snug text-ink">{p.title}</h3>
+                  <div className="mt-1.5 flex items-start justify-between gap-2">
+                    <h3 className="min-w-0 break-words text-sm font-medium leading-snug text-ink">{p.title}</h3>
+                    {canDeleteProduct(user?.id, p.ownerId, isAdmin) && <DeleteProductButton product={p} />}
+                  </div>
                   {p.description && (
                     <p className="mt-2 line-clamp-2 text-xs text-dim">{p.description}</p>
                   )}

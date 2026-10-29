@@ -44,7 +44,7 @@ function Profile() {
 
   const profileQuery = useQuery({
     queryKey: ["profile", user?.id],
-    queryFn: () => getProfile(user!.id),
+    queryFn: () => user ? getProfile(user.id) : Promise.resolve(null),
     enabled: !!user,
   });
 
@@ -65,9 +65,13 @@ function Profile() {
   }, [profileQuery.data, user]);
 
   const save = useMutation({
-    mutationFn: () => saveProfile(user!.id, form),
+    mutationFn: () => {
+      if (!user) throw new Error("Войдите в аккаунт");
+      return saveProfile(user.id, form);
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      await queryClient.invalidateQueries({ queryKey: ["public-profile"] });
       toast.success("Профиль сохранён");
     },
     onError: () => toast.error("Не удалось сохранить профиль"),
