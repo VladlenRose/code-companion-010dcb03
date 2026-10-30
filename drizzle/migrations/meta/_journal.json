@@ -64,6 +64,13 @@
       "when": 1793138176844,
       "tag": "0008_product_deletion_and_registration_names",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793402906508,
+      "tag": "0009_apply_pending_marker",
+      "breakpoints": true
     }
   ]
 }

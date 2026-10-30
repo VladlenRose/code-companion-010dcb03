@@ -1,0 +1,1 @@
+COMMENT ON TABLE public.products IS 'Catalog items created via trade requests';
