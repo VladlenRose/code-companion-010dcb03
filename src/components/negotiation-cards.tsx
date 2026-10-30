@@ -64,9 +64,10 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
   });
   const draft = useMutation({
     mutationFn: () => { if (!row) throw new Error("Переговоры недоступны."); return contract({ data: { id: row.id, version: row.version } }); },
-    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["documents"] }); await navigate({ to: "/documents" }); },
+    onSuccess: async () => { await client.invalidateQueries({ queryKey: ["documents"] }); await navigate({ to: "/dashboard", search: { tab: "documents" } }); },
     onError: (error) => toast.error(error.message),
   });
+
 
   if (query.isPending) return <div className="flex items-center justify-center gap-2 p-10 text-sm text-dim"><Loader2 className="size-4 animate-spin" />Открываем переговоры…</div>;
   if (query.isError || !row || !snapshot) return <div className="space-y-3 p-6 text-sm text-destructive"><p>Не удалось открыть переговоры. Проверьте вход и попробуйте снова.</p><Button variant="outline" onClick={() => void query.refetch()}><RefreshCw className="size-4" />Повторить</Button></div>;
