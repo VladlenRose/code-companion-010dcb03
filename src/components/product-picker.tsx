@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { uploadProductImage } from "@/lib/api";
 import { CATEGORIES, fallbackImage } from "@/lib/catalog-meta";
-import { semanticProductSearch } from "@/lib/embeddings.functions";
+import { refreshProductEmbeddings, semanticProductSearch } from "@/lib/embeddings.functions";
 import { cn } from "@/lib/utils";
 
 export type PickedProduct = { id: string; title: string; category: string | null; unit: string | null; kind?: string; image_id?: string | null };
@@ -146,6 +146,7 @@ export function ProductPicker({
 
 function CreateProduct({ initialTitle, onCancel, onCreated }: { initialTitle: string; onCancel: () => void; onCreated: (p: PickedProduct) => void }) {
   const search = useProductSearch();
+  const refreshEmb = useServerFn(refreshProductEmbeddings);
   const [kind, setKind] = useState<"product" | "service">("product");
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState("");
@@ -178,6 +179,7 @@ function CreateProduct({ initialTitle, onCancel, onCreated }: { initialTitle: st
         _title: title, _description: description, _category: category, _unit: unit, _image_id: imageId ?? "", _kind: kind, _attrs: attrs,
       });
       if (error) throw error;
+      void refreshEmb().catch(() => undefined);
       toast.success("Карточка создана и выбрана");
       onCreated({ id: data as string, title: title.trim(), category, unit, kind, image_id: imageId });
     } catch (e) {

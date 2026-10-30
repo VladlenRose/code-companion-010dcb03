@@ -37,7 +37,7 @@ async function embed(input: string[]): Promise<number[][]> {
 }
 
 /** Досчитывает эмбеддинги товаров, у которых их нет или изменилось название. */
-async function syncEmbeddings() {
+export async function syncEmbeddings() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("products")

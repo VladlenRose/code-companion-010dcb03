@@ -45,6 +45,7 @@ export const openNegotiation = createServerFn({ method: "POST" })
     if (existing) return existing;
     let semantic: number | undefined;
     if (buyer.product_id && seller.product_id) {
+      try { const { syncEmbeddings } = await import("./embeddings.functions"); await syncEmbeddings(); } catch { /* lexical fallback */ }
       const { data: similarities } = await context.supabase.rpc("product_pair_similarity", { _ref: buyer.product_id, _ids: [seller.product_id] });
       semantic = similarities?.[0]?.similarity;
     }

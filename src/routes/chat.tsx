@@ -23,6 +23,7 @@ import {
 import { AgreementBadge } from "@/components/agreement-badge";
 import { agreementPercent } from "@/lib/agreement";
 import { canBargain, requestSimilarity } from "@/lib/request-similarity";
+import { refreshProductEmbeddings } from "@/lib/embeddings.functions";
 import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { cn } from "@/lib/utils";
 import { RequestOwner } from "@/components/request-owner";
@@ -78,9 +79,11 @@ function Chat() {
     if (error) throw error;
     return data ?? [];
   } });
+  const refreshEmb = useServerFn(refreshProductEmbeddings);
   const similarities = useQuery({ queryKey: ["chat-similarities", my?.product_id, all.map(r => r.product_id)], enabled: !!my?.product_id, queryFn: async () => {
     if (!my?.product_id) return {} as Record<string, number>;
     const ids = all.flatMap(r => r.product_id ? [r.product_id] : []);
+    await refreshEmb().catch(() => undefined);
     const { data, error } = await supabase.rpc("product_pair_similarity", { _ref: my.product_id, _ids: ids });
     if (error) throw error;
     return Object.fromEntries((data ?? []).map(r => [r.product_id, r.similarity]));
