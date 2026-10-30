@@ -1,3 +1,10 @@
+import { AppShell } from "@/components/app-shell";
+import { ProfileRequests } from "@/components/profile-requests";
+
+import { ProfileDocuments } from "@/components/profile-documents";
+import { ProfileSettings } from "@/components/profile-settings";
+import { FileText, LayoutGrid, Settings } from "lucide-react";
+
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { FileText, MessagesSquare, Package } from "lucide-react";
@@ -13,6 +20,9 @@ const DESCRIPTION =
   "Личный кабинет AI-Mall: статистика заявок, сообщения ИИ-агентов и лента активности по сделкам.";
 
 export const Route = createFileRoute("/dashboard")({
+  validateSearch: (search: Record<string, unknown>): { tab?: "overview" | "documents" | "settings" } => ({
+    tab: (search.tab as "overview" | "documents" | "settings") || "overview",
+  }),
   head: () => ({
     meta: [
       { title: TITLE },
@@ -25,6 +35,7 @@ export const Route = createFileRoute("/dashboard")({
   }),
   component: Dashboard,
 });
+
 
 function Dashboard() {
   const { user } = useAuth();
