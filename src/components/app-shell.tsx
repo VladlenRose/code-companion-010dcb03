@@ -31,8 +31,6 @@ const NAV = [
   { label: "Мои товары и услуги", to: "/seller", icon: Package, sub: true },
   { label: "Торговые заявки", to: "/requests", icon: Inbox },
   { label: "Чат-переговоры", to: "/chat", icon: MessagesSquare },
-  { label: "Документы", to: "/documents", icon: FileText },
-  { label: "Настройки", to: "/profile", icon: Settings },
 ] as const;
 
 function initials(name?: string | null) {
