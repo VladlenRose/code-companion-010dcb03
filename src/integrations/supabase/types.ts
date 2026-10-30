@@ -417,10 +417,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      admin_delete_negotiation: {
-        Args: { _actor: string; _expected: number; _id: string }
-        Returns: string
-      }
       admin_exists: { Args: never; Returns: boolean }
       admin_list_users: {
         Args: never
@@ -487,7 +483,6 @@ export type Database = {
         }
         Returns: string
       }
-      delete_catalog_product: { Args: { _id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

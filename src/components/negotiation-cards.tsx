@@ -115,17 +115,16 @@ export function NegotiationCards({ my, other }: { my: TradeRequest; other: Trade
           <p className="mt-1 text-xs text-dim">{shown.term?.note ?? "Условия отсутствуют в обеих заявках"}</p>
           {shown.term && <p className="mt-2 text-xs text-dim">Бот покупателя: {shown.term.buyerOk ? "принял" : "нужна уступка"} · Бот продавца: {shown.term.sellerOk ? "принял" : "нужна уступка"}</p>}
         </div>
-        <details className="mb-3 text-xs">
-          <summary className="flex cursor-pointer items-center gap-1.5 text-brand"><Bot className="size-4" />Ответ моего бота и ход торга<ChevronDown className="size-3" /></summary>
-          <div className="mt-2 space-y-2 border-l border-border pl-3 leading-relaxed text-dim">
-            {shown.log.length === 0 && <p>{shown.term?.note ?? "Бот не предложил условий."}</p>}
-            {shown.log.map((line, i) => <p key={i}><span className={cn("font-medium", line.side === side && "text-brand")}>{line.side === "system" ? "Результат" : line.side === side ? "Мой бот" : "Бот второй стороны"}:</span> {line.text}</p>)}
-            {shown.term && <p className="text-ink">Мой бот: предлагаю «{shown.term.value}». {!(side === "buyer" ? shown.term.buyerOk : shown.term.sellerOk) && "Нужно ваше согласие на уступку."}</p>}
+        <details className="mb-3 rounded-lg border border-brand/30 bg-brand/5 p-3" open>
+          <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-brand"><Bot className="size-4" />Ответ моего бота и ход торга<ChevronDown className="size-3" /></summary>
+          <div className="mt-3 space-y-2 text-sm leading-relaxed">
+            {shown.log.length === 0 && <p className="text-dim">{shown.term?.note ?? "Бот не предложил условий."}</p>}
+            {shown.log.map((line, i) => { const mine = line.side === side; const sys = line.side === "system"; return <div key={i} className={cn("flex", sys ? "justify-center" : mine ? "justify-end" : "justify-start")}><p className={cn("max-w-[90%] rounded-2xl px-3 py-2", sys ? "border border-gold/50 bg-gold/10 text-ink" : mine ? "bg-brand text-brand-foreground" : "bg-card text-ink border border-border")}><span className="block text-xs font-semibold opacity-80">{sys ? "Результат" : mine ? "Мой бот" : "Бот второй стороны"}</span>{line.text}</p></div>; })}
+            {shown.term && <div className="flex justify-end"><p className="max-w-[90%] rounded-2xl bg-brand px-3 py-2 text-brand-foreground"><span className="block text-xs font-semibold opacity-80">Мой бот</span>Предлагаю «{shown.term.value}». {!(side === "buyer" ? shown.term.buyerOk : shown.term.sellerOk) && "Нужно ваше согласие на уступку."}</p></div>}
           </div>
         </details>
-        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-          <span className={c.buyerAccepted ? "text-brand" : "text-dim"}>Покупатель: {c.buyerAccepted ? "подтвердил" : "не подтвердил"}</span>
-          <span className={c.sellerAccepted ? "text-brand" : "text-dim"}>Продавец: {c.sellerAccepted ? "подтвердил" : "не подтвердил"}</span>
+        <div className="mb-3 flex flex-wrap gap-2 text-xs">
+          {([["Покупатель", c.buyerAccepted, side === "buyer"], ["Продавец", c.sellerAccepted, side === "seller"]] as const).map(([who, ok, me]) => <span key={who} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-medium", ok ? "border-agreement-good/40 bg-agreement-good/10 text-agreement-good" : "border-agreement-warn/40 bg-agreement-warn/10 text-agreement-warn")}>{ok ? <Check className="size-3" /> : "⏳"} {who}{me ? " (вы)" : ""}: {ok ? "подтвердил" : "не подтвердил"}</span>)}
         </div>
         {current ? <div className="space-y-3 border-t border-border pt-3">
           {stale && <p role="alert" className="text-xs text-destructive">Другая сторона изменила условия. Закройте черновик и проверьте новую версию.</p>}

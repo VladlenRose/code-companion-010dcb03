@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Bot, Handshake, Loader2, Send, User } from "lucide-react";
+import { Bot, FileText, Handshake, Loader2, Send, User } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -112,13 +112,13 @@ function Chat() {
           ) : (
             mine.map((r) => (
               <div key={r.id} className="space-y-2 border-b border-border px-4 py-3 last:border-0">
-              <RequestOwner userId={r.owner_id} />
+              <div className="flex items-center justify-between gap-2"><RequestOwner userId={r.owner_id} /><Button variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" aria-label="Карточка заявки" onClick={() => setSelected(r.id)}><FileText className="size-3.5" />Карточка</Button></div>
               <Button variant="ghost"
                 type="button"
-                onClick={() => { setMyId(r.id); setOtherId(null); setSelected(r.id); }}
+                onClick={() => { setMyId(r.id); setOtherId(null); }}
                 className={cn(
                   "flex h-auto w-full flex-col items-start gap-1 whitespace-normal p-2 text-left",
-                  r.id === myId ? "bg-brand/6" : "hover:bg-foreground/4",
+                  r.id === myId ? "bg-brand/15 ring-1 ring-brand" : "hover:bg-foreground/4",
                 )}
               >
                 <span className="truncate text-sm font-medium text-ink">{r.title}</span>
@@ -141,13 +141,13 @@ function Chat() {
           ) : (
             matches.map(({ r, result }) => (
               <div key={r.id} className="space-y-2 border-b border-border px-4 py-3 last:border-0">
-              <RequestOwner userId={r.owner_id} />
+              <div className="flex items-center justify-between gap-2"><RequestOwner userId={r.owner_id} /><Button variant="outline" size="sm" className="h-7 shrink-0 px-2 text-xs" aria-label="Карточка заявки" onClick={() => setSelected(r.id)}><FileText className="size-3.5" />Карточка</Button></div>
               <Button variant="ghost"
                 type="button"
-                onClick={() => { setOtherId(r.id); setSelected(r.id); }}
+                onClick={() => setOtherId(r.id)}
                 className={cn(
                   "flex h-auto w-full items-center justify-between gap-2 whitespace-normal p-2 text-left",
-                  r.id === otherId ? "bg-brand/6" : "hover:bg-foreground/4",
+                  r.id === otherId ? "bg-brand/15 ring-1 ring-brand" : "hover:bg-foreground/4",
                 )}
               >
                 <span className="min-w-0">

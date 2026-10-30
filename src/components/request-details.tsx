@@ -8,15 +8,18 @@ import { LABELS, withDefaults, type ParamKey } from "@/lib/bargain";
 export function RequestDetails({ requestId, onClose }: { requestId: string | null; onClose: () => void }) {
   const q = useQuery({ queryKey: ["request-details", requestId], enabled: !!requestId, queryFn: async () => {
     if (!requestId) return null;
-    const { data, error } = await supabase.from("trade_requests").select("id,owner_id,kind,title,params,extra,created_at,attachment_url").eq("id", requestId).single();
+    const { data, error } = await supabase.from("trade_requests").select("id,owner_id,kind,title,params,extra,created_at,attachment_url,product_id").eq("id", requestId).single();
     if (error) throw error;
-    return { ...data, params: withDefaults(data.params as never) };
+    let image: string | null = null;
+    if (data.product_id) { const { data: p } = await supabase.from("products").select("image_id").eq("id", data.product_id).maybeSingle(); image = p?.image_id ?? null; }
+    return { ...data, image, params: withDefaults(data.params as never) };
   } });
   const r = q.data;
   return <Dialog open={!!requestId} onOpenChange={open => { if (!open) onClose(); }}>
     <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
       <DialogHeader><DialogTitle>{r?.title ?? "Карточка заявки"}</DialogTitle><DialogDescription>{r ? `${r.kind === "buy" ? "Покупка" : "Продажа"} · ${new Date(r.created_at).toLocaleDateString("ru-RU")}` : "Заявка участника"}</DialogDescription></DialogHeader>
       {q.isPending ? <Loader2 className="size-5 animate-spin text-dim" /> : q.isError ? <p role="alert" className="text-sm text-destructive">Заявка недоступна или удалена.</p> : r && <>
+        {r.image && <img src={r.image} alt={r.title} className="max-h-64 w-full rounded-lg object-cover" />}
         <RequestOwner userId={r.owner_id} />
         <dl className="divide-y divide-border text-sm">{(Object.keys(LABELS) as ParamKey[]).sort((a,b) => r.params[b].priority-r.params[a].priority).map(k => {
           const p = r.params[k];

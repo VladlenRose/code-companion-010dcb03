@@ -311,7 +311,7 @@ export async function updateProduct(id: string, data: Partial<ProductInput>) {
 }
 
 export async function deleteProduct(id: string) {
-  const { data, error } = await supabase.rpc("delete_catalog_product", { _id: id });
+  const { data, error } = await (supabase.rpc as unknown as (f: string, a: object) => Promise<{ data: unknown; error: { message: string } | null }>)("delete_catalog_product", { _id: id });
   if (error) throw new Error(error.message.includes("FORBIDDEN") ? "Нет прав на удаление этой карточки" : "Не удалось удалить карточку");
   if (data !== id) throw new Error("Карточка не удалена");
 }
