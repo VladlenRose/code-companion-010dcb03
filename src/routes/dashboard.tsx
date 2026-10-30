@@ -1,16 +1,11 @@
-import { AppShell } from "@/components/app-shell";
-import { ProfileRequests } from "@/components/profile-requests";
-
-import { ProfileDocuments } from "@/components/profile-documents";
-import { ProfileSettings } from "@/components/profile-settings";
-import { FileText, LayoutGrid, Settings } from "lucide-react";
-
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FileText, MessagesSquare, Package } from "lucide-react";
+import { FileText, LayoutGrid, MessagesSquare, Package, Settings } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { ProfileDocuments } from "@/components/profile-documents";
 import { ProfileRequests } from "@/components/profile-requests";
+import { ProfileSettings } from "@/components/profile-settings";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { listDocuments, listMyProducts, listThreads } from "@/lib/api";
@@ -20,7 +15,9 @@ const DESCRIPTION =
   "Личный кабинет AI-Mall: статистика заявок, сообщения ИИ-агентов и лента активности по сделкам.";
 
 export const Route = createFileRoute("/dashboard")({
-  validateSearch: (search: Record<string, unknown>): { tab?: "overview" | "documents" | "settings" } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { tab?: "overview" | "documents" | "settings" } => ({
     tab: (search.tab as "overview" | "documents" | "settings") || "overview",
   }),
   head: () => ({
@@ -36,9 +33,9 @@ export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-
 function Dashboard() {
   const { user } = useAuth();
+  const { tab = "overview" } = Route.useSearch();
 
   const threads = useQuery({
     queryKey: ["threads", user?.id],
@@ -67,9 +64,14 @@ function Dashboard() {
       label: "Документы",
       value: (docs.data ?? []).length,
       icon: FileText,
-      to: "/documents" as const,
+      to: "/dashboard?tab=documents" as const,
     },
-    { label: "Мои товары и услуги", value: (mine.data ?? []).length, icon: Package, to: "/seller" as const },
+    {
+      label: "Мои товары и услуги",
+      value: (mine.data ?? []).length,
+      icon: Package,
+      to: "/seller" as const,
+    },
   ];
 
   const activity = [...(threads.data ?? [])]
@@ -78,62 +80,111 @@ function Dashboard() {
 
   return (
     <AppShell title={`Профиль · ${user?.name ?? ""}`}>
-      {user && <ProfileRequests userId={user.id} />}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            to={s.to}
-            className="glass-panel block rounded-2xl p-5 transition-shadow hover:shadow-lg"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-dim">{s.label}</span>
-              <s.icon className="size-4 text-brand" />
-            </div>
-            <div className="mt-3 font-mono text-2xl font-semibold text-ink">{s.value}</div>
-          </Link>
-        ))}
+      {/* Кнопки вкладок вверху профиля */}
+      <div className="mb-6 flex gap-2 border-b border-border pb-3">
+        <Link
+          to="/dashboard"
+          search={{ tab: "overview" }}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+            tab === "overview"
+              ? "bg-brand text-brand-foreground"
+              : "text-dim hover:bg-foreground/5 hover:text-ink"
+          }`}
+        >
+          <LayoutGrid className="size-4" />
+          Обзор
+        </Link>
+        <Link
+          to="/dashboard"
+          search={{ tab: "documents" }}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+            tab === "documents"
+              ? "bg-brand text-brand-foreground"
+              : "text-dim hover:bg-foreground/5 hover:text-ink"
+          }`}
+        >
+          <FileText className="size-4" />
+          Документы
+        </Link>
+        <Link
+          to="/dashboard"
+          search={{ tab: "settings" }}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+            tab === "settings"
+              ? "bg-brand text-brand-foreground"
+              : "text-dim hover:bg-foreground/5 hover:text-ink"
+          }`}
+        >
+          <Settings className="size-4" />
+          Настройки
+        </Link>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <section className="glass-panel rounded-2xl p-6 lg:col-span-2">
-          <h2 className="text-base font-semibold text-ink">Последние активности</h2>
-          {activity.length === 0 ? (
-            <p className="mt-5 text-sm text-dim">
-              Активности пока нет — начните с поиска товаров в каталоге.
-            </p>
-          ) : (
-            <ol className="mt-5 space-y-5">
-              {activity.map((t) => (
-                <li key={t.$id} className="flex gap-4">
-                  <div className="w-16 shrink-0 pt-0.5 font-mono text-xs text-dim">
-                    {new Date(t.lastAt ?? t.$createdAt).toLocaleDateString("ru-RU")}
-                  </div>
-                  <div className="relative border-l border-border pl-5">
-                    <span className="absolute -left-[4.5px] top-1.5 size-2 rounded-full bg-brand" />
-                    <div className="text-sm font-medium text-ink">
-                      {t.company} · {t.stage}
-                    </div>
-                    <div className="mt-0.5 text-sm text-dim">{t.preview}</div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
+      {/* Контент активной вкладки */}
+      {tab === "documents" && <ProfileDocuments />}
 
-        <section className="glass-panel rounded-2xl p-6">
-          <h2 className="text-base font-semibold text-ink">Быстрые действия</h2>
-          <div className="mt-5 flex flex-col gap-3">
-            <Button variant="hero" className="h-11 w-full" asChild>
-              <Link to="/requests">Создать заявку</Link>
-            </Button>
-            <Button variant="outline" className="h-11 w-full rounded-full" asChild>
-              <Link to="/chat">Открыть переговоры</Link>
-            </Button>
+      {tab === "settings" && <ProfileSettings />}
+
+      {tab === "overview" && (
+        <>
+          {user && <ProfileRequests userId={user.id} />}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {stats.map((s) => (
+              <Link
+                key={s.label}
+                to={s.to}
+                className="glass-panel block rounded-2xl p-5 transition-shadow hover:shadow-lg"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-dim">{s.label}</span>
+                  <s.icon className="size-4 text-brand" />
+                </div>
+                <div className="mt-3 font-mono text-2xl font-semibold text-ink">{s.value}</div>
+              </Link>
+            ))}
           </div>
-        </section>
-      </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            <section className="glass-panel rounded-2xl p-6 lg:col-span-2">
+              <h2 className="text-base font-semibold text-ink">Последние активности</h2>
+              {activity.length === 0 ? (
+                <p className="mt-5 text-sm text-dim">
+                  Активности пока нет — начните с поиска товаров в каталоге.
+                </p>
+              ) : (
+                <ol className="mt-5 space-y-5">
+                  {activity.map((t) => (
+                    <li key={t.$id} className="flex gap-4">
+                      <div className="w-16 shrink-0 pt-0.5 font-mono text-xs text-dim">
+                        {new Date(t.lastAt ?? t.$createdAt).toLocaleDateString("ru-RU")}
+                      </div>
+                      <div className="relative border-l border-border pl-5">
+                        <span className="absolute -left-[4.5px] top-1.5 size-2 rounded-full bg-brand" />
+                        <div className="text-sm font-medium text-ink">
+                          {t.company} · {t.stage}
+                        </div>
+                        <div className="mt-0.5 text-sm text-dim">{t.preview}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+
+            <section className="glass-panel rounded-2xl p-6">
+              <h2 className="text-base font-semibold text-ink">Быстрые действия</h2>
+              <div className="mt-5 flex flex-col gap-3">
+                <Button variant="hero" className="h-11 w-full" asChild>
+                  <Link to="/requests">Создать заявку</Link>
+                </Button>
+                <Button variant="outline" className="h-11 w-full rounded-full" asChild>
+                  <Link to="/chat">Открыть переговоры</Link>
+                </Button>
+              </div>
+            </section>
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }
