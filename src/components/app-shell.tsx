@@ -1,13 +1,11 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  FileText,
   Inbox,
   LayoutGrid,
   Loader2,
   MessagesSquare,
   Package,
-  Settings,
   Store,
   Menu,
 } from "lucide-react";
