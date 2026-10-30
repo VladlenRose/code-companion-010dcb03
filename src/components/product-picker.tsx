@@ -179,7 +179,7 @@ function CreateProduct({ initialTitle, onCancel, onCreated }: { initialTitle: st
         _title: title, _description: description, _category: category, _unit: unit, _image_id: imageId ?? "", _kind: kind, _attrs: attrs,
       });
       if (error) throw error;
-      void refreshEmb().catch(() => undefined);
+      await refreshEmb().catch(() => undefined);
       toast.success("Карточка создана и выбрана");
       onCreated({ id: data as string, title: title.trim(), category, unit, kind, image_id: imageId });
     } catch (e) {
