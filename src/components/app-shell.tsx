@@ -119,9 +119,6 @@ export function AppShell({
               <DropdownMenuItem asChild>
                 <Link to="/dashboard">Мой профиль</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/documents">Документы</Link>
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
