@@ -64,7 +64,7 @@ function Dashboard() {
       label: "Документы",
       value: (docs.data ?? []).length,
       icon: FileText,
-      to: "/dashboard?tab=documents" as const,
+      to: "/documents" as const,
     },
     {
       label: "Мои товары и услуги",
