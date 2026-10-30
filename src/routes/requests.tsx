@@ -25,6 +25,7 @@ import { AgreementBadge } from "@/components/agreement-badge";
 import { agreementPercent } from "@/lib/agreement";
 import { openNegotiation } from "@/lib/negotiations.functions";
 import { canBargain, requestSimilarity } from "@/lib/request-similarity";
+import { refreshProductEmbeddings } from "@/lib/embeddings.functions";
 import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { VoiceButton } from "@/components/voice-button";
 import { RequestOwner } from "@/components/request-owner";
@@ -137,12 +138,13 @@ function RequestsPage() {
   }
   useEffect(() => { if (mode === "registry") void loadAll(); }, [mode]);
 
+  const refreshEmb = useServerFn(refreshProductEmbeddings);
   // Смысловая близость товаров (эмбеддинги) между моей заявкой и остальными
   useEffect(() => {
     if (!ref) { setSims({}); return; }
     const ids = [...new Set(all.map((r) => r.product_id).filter((x): x is string => !!x))];
     if (!ids.length) return;
-    void supabase.rpc("product_pair_similarity", { _ref: ref.productId, _ids: ids }).then(({ data }) => {
+    void refreshEmb().catch(() => undefined).then(() => supabase.rpc("product_pair_similarity", { _ref: ref.productId, _ids: ids })).then(({ data }) => {
       setSims(Object.fromEntries((data ?? []).map((d) => [d.product_id, d.similarity])));
     });
   }, [ref, all]);
