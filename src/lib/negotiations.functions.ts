@@ -14,7 +14,7 @@ export const deleteNegotiation = createServerFn({ method: "POST" })
     const { data: role, error } = await context.supabase.rpc("my_role");
     assertAdminRole(role, error);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: id, error: writeError } = await supabaseAdmin.rpc("admin_delete_negotiation", { _id: data.id, _expected: data.version, _actor: context.userId });
+    const { data: id, error: writeError } = await (supabaseAdmin.rpc as unknown as (f: string, a: object) => Promise<{ data: unknown; error: { message: string } | null }>)("admin_delete_negotiation", { _id: data.id, _expected: data.version, _actor: context.userId });
     if (writeError || !id) throw new Error(writeError?.message.includes("STALE_VERSION") ? "Условия торга изменились. Обновите список и подтвердите удаление заново." : "Торг не удалён. Обновите список и попробуйте снова.");
     return { id };
   });

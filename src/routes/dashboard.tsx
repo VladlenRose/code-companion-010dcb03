@@ -18,7 +18,7 @@ export const Route = createFileRoute("/dashboard")({
   validateSearch: (
     search: Record<string, unknown>,
   ): { tab?: "overview" | "documents" | "settings" } => ({
-    tab: (search.tab as "overview" | "documents" | "settings") || "overview",
+    tab: (search["tab"] as "overview" | "documents" | "settings") || "overview",
   }),
   head: () => ({
     meta: [
