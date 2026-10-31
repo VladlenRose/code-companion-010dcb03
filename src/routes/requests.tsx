@@ -25,6 +25,7 @@ import { AgreementBadge } from "@/components/agreement-badge";
 import { agreementPercent } from "@/lib/agreement";
 import { openNegotiation } from "@/lib/negotiations.functions";
 import { canBargain, requestSimilarity } from "@/lib/request-similarity";
+import { useProductKinds } from "@/hooks/use-product-kinds";
 import { refreshProductEmbeddings } from "@/lib/embeddings.functions";
 import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { VoiceButton } from "@/components/voice-button";
@@ -150,9 +151,10 @@ function RequestsPage() {
   }, [ref, all]);
 
   const runBargain = useServerFn(openNegotiation);
+  const productKinds = useProductKinds();
   const similarityFor = (r: Stored) => {
     const my = all.find(item => item.id === ref?.id);
-    return my ? requestSimilarity(my, r, r.product_id ? sims[r.product_id] : undefined) : 0;
+    return my ? requestSimilarity(my, r, r.product_id ? sims[r.product_id] : undefined, productKinds) : 0;
   };
   const results = useQuery({
     queryKey: ["registry-negotiations", ref?.id], enabled: !!ref,

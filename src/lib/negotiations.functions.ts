@@ -51,7 +51,11 @@ export const openNegotiation = createServerFn({ method: "POST" })
     }
     const b = { ...buyer, kind: "buy" as const, params: withDefaults(buyer.params as never) };
     const s = { ...seller, kind: "sell" as const, params: withDefaults(seller.params as never) };
-    if (!canBargain(requestSimilarity(b, s, semantic))) throw new Error("Сходство товаров ниже 50% — торг не запускается.");
+    const ids = [buyer.product_id, seller.product_id].filter((x): x is string => !!x);
+    const { data: prods } = ids.length ? await context.supabase.from("products").select("id,kind").in("id", ids) : { data: [] };
+    const kinds = Object.fromEntries((prods ?? []).map((p) => [p.id, p.kind]));
+    if ((kinds[buyer.product_id ?? ""] ?? "product") !== (kinds[seller.product_id ?? ""] ?? "product")) throw new Error("Товар и услуга между собой не торгуются.");
+    if (!canBargain(requestSimilarity(b, s, semantic, kinds))) throw new Error("Сходство не выше 50% — торг не запускается.");
     // Atomic cross-participant write; actor is verified above, never taken from client input.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error: writeError } = await supabaseAdmin.rpc("open_request_negotiation", {
