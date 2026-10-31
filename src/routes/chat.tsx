@@ -23,6 +23,7 @@ import {
 import { AgreementBadge } from "@/components/agreement-badge";
 import { agreementPercent } from "@/lib/agreement";
 import { canBargain, requestSimilarity } from "@/lib/request-similarity";
+import { useProductKinds } from "@/hooks/use-product-kinds";
 import { refreshProductEmbeddings } from "@/lib/embeddings.functions";
 import type { NegotiationSnapshot } from "@/lib/negotiation";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,7 @@ function Chat() {
     return data ?? [];
   } });
   const refreshEmb = useServerFn(refreshProductEmbeddings);
+  const productKinds = useProductKinds();
   const similarities = useQuery({ queryKey: ["chat-similarities", my?.product_id, all.map(r => r.product_id)], enabled: !!my?.product_id, queryFn: async () => {
     if (!my?.product_id) return {} as Record<string, number>;
     const ids = all.flatMap(r => r.product_id ? [r.product_id] : []);
@@ -92,9 +94,9 @@ function Chat() {
     if (!my) return [];
     return all
       .filter((r) => r.kind !== my.kind && r.owner_id !== my.owner_id)
-      .filter(r => canBargain(requestSimilarity(my, r, r.product_id ? similarities.data?.[r.product_id] : undefined)))
+      .filter(r => canBargain(requestSimilarity(my, r, r.product_id ? similarities.data?.[r.product_id] : undefined, productKinds)))
       .map((r) => ({ r, result: saved.data?.find(n => n.buyer_request_id === (my.kind === "buy" ? my.id : r.id) && n.seller_request_id === (my.kind === "sell" ? my.id : r.id)) }));
-  }, [all, my, saved.data, similarities.data]);
+  }, [all, my, saved.data, similarities.data, productKinds]);
   const other = matches.find((m) => m.r.id === otherId)?.r ?? null;
 
   return (
