@@ -1,3 +1,4 @@
+// @ts-expect-error Bun provides runtime test types.
 import { describe, expect, test } from "bun:test";
 import { emptyParams, type TradeRequest } from "./bargain";
 import { canBargain, requestSimilarity } from "./request-similarity";
