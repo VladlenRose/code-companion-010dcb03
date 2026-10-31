@@ -25,7 +25,7 @@ test("100% ботов не разрешают договор без подтве
   const one = acceptCondition(state,"buyer","price"); expect(humansAgreed(one)).toBe(false); expect(humansAgreed(acceptCondition(one,"seller","price"))).toBe(true);
 });
 test("только согласованные пункты могут дать ровно 100%", () => { const state = pending("price", "100", "100", 100); const c = state.conditions[0]; if (!c) throw new Error("Missing condition"); expect(conditionPercent(state,c)).toBe(99); });
-test("товары менее 50% сходства не запускают торг", () => { expect(canBargain(0.49)).toBe(false); expect(canBargain(0.5)).toBe(true); });
+test("товары менее 50% сходства не запускают торг", () => { expect(canBargain(0.49)).toBe(false); expect(canBargain(0.5)).toBe(false); expect(canBargain(0.51)).toBe(true); });
 test("высокий приоритет удерживает текстовое условие, выгодное принимается", () => {
  const b = emptyParams(), s = emptyParams(); b.payment.value="постоплата"; s.payment.value="предоплата"; b.payment.priority=s.payment.priority=100;
  const c = initialNegotiation(b,s).conditions.find(c=>c.key==="payment"); expect(c?.term?.buyerOk).toBe(false); expect(c?.term?.sellerOk).toBe(false);
